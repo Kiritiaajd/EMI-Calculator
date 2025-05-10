@@ -1,9 +1,16 @@
 import streamlit as st
 import pandas as pd
-from backend.scenarios_01 import calculate_emi, generate_full_schedule
+from backend.scenarios_01 import calculate_emi as calculate_emi_s1, generate_full_schedule
+from backend.scenarios_02 import calculate_emi as calculate_emi_s2, generate_schedule_fixed_tenure
 
 def main():
     st.title("EMI Calculator & Dynamic Schedule Generator")
+
+    # Choose Scenario
+    scenario = st.radio(
+        "Select EMI Scenario",
+        ("Scenario 1: Constant EMI, Changing Tenure", "Scenario 2: Changing EMI, Constant Tenure")
+    )
 
     # Loan Details Input
     st.header("Loan Details")
@@ -15,9 +22,12 @@ def main():
 
     tenure_years = st.number_input("Loan Tenure (Years)", min_value=1, value=5)
 
-    # Calculate EMI
-    emi = calculate_emi(principal, annual_rate, tenure_years)
-    st.write(f"Calculated EMI (Fixed): ₹{emi}")
+    if scenario == "Scenario 1: Constant EMI, Changing Tenure":
+        emi = calculate_emi_s1(principal, annual_rate, tenure_years)
+        st.write(f"Calculated EMI (Fixed): ₹{emi}")
+    else:
+        emi = calculate_emi_s2(principal, annual_rate, tenure_years)
+        st.write(f"Initial EMI (Variable): ₹{emi}")
 
     # Rate Changes
     st.header("Interest Rate Changes")
@@ -35,25 +45,47 @@ def main():
     # Generate Schedule
     if st.button("Generate EMI Schedule"):
         tenure_months = tenure_years * 12
-        schedule_df, change_summaries = generate_full_schedule(principal, emi, annual_rate, tenure_months, rate_changes)
 
-        # Show summaries
-        if change_summaries:
-            st.subheader(" Interest Rate Change Summary")
-            for change in change_summaries:
-                with st.container():
+        if scenario == "Scenario 1: Constant EMI, Changing Tenure":
+            schedule_df, change_summaries = generate_full_schedule(
+                principal, emi, annual_rate, tenure_months, rate_changes
+            )
+
+            # Summary Display
+            if change_summaries:
+                st.subheader("Interest Rate Change Summary")
+                for change in change_summaries:
+                    with st.container():
+                        st.markdown(f"""
+                         **Interest rate changed at Month {change['change_month']}**  
+                        - New Interest Rate: **{change['new_rate']}%**  
+                        - Previous Remaining Tenure: **{change['previous_remaining']} months**  
+                        - New Remaining Tenure: **{change['new_remaining']} months**  
+                        {"→ Tenure increased by" if change['tenure_diff'] > 0 else "→ Tenure reduced by"} **{abs(change['tenure_diff'])} months**
+                        """)
+
+        else:  # Scenario 2
+            schedule_df, summary_df = generate_schedule_fixed_tenure(
+                principal, original_rate=annual_rate, original_tenure_years=tenure_years, rate_changes=rate_changes
+            )
+
+            if not summary_df.empty:
+                st.subheader("EMI Change Summary")
+                for _, row in summary_df.iterrows():
                     st.markdown(f"""
-                    🔄 **Interest rate changed at Month {change['change_month']}**  
-                    - New Interest Rate: **{change['new_rate']}%**  
-                    - Previous Remaining Tenure: **{change['previous_remaining']} months**  
-                    - New Remaining Tenure: **{change['new_remaining']} months**  
-                    {"→ Tenure increased by" if change['tenure_diff'] > 0 else "→ Tenure reduced by"} **{abs(change['tenure_diff'])} months**
-                    """.strip())
+                     **Interest rate changed at Month {int(row['Change Month'])}**  
+                    - New Interest Rate: **{row['New Rate']}%**  
+                    - Previous EMI: **₹{row['Previous EMI']}**  
+                    - New EMI: **₹{row['New EMI']}**  
+                    {"→ EMI increased by" if row['Change (₹)'] > 0 else "→ EMI reduced by"} **₹{abs(row['Change (₹)'])}**  
+                    - Remaining Tenure: **{int(row['Remaining Tenure (Months)'])} months**
+                    """)
 
-        st.subheader("📅 EMI Repayment Schedule")
+        # Show EMI Table
+        st.subheader("EMI Repayment Schedule")
         st.dataframe(schedule_df, use_container_width=True)
 
-        # Download CSV
+        # Download
         csv = schedule_df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Schedule as CSV", data=csv, file_name="emi_schedule.csv", mime="text/csv")
 
