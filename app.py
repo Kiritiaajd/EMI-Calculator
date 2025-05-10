@@ -15,7 +15,7 @@ def main():
 
     tenure_years = st.number_input("Loan Tenure (Years)", min_value=1, value=5)
 
-    # Calculate EMI immediately
+    # Calculate EMI
     emi = calculate_emi(principal, annual_rate, tenure_years)
     st.write(f"Calculated EMI (Fixed): ₹{emi}")
 
@@ -35,9 +35,23 @@ def main():
     # Generate Schedule
     if st.button("Generate EMI Schedule"):
         tenure_months = tenure_years * 12
-        schedule_df = generate_full_schedule(principal, emi, annual_rate, tenure_months, rate_changes)
-        st.subheader("EMI Repayment Schedule")
-        st.write(schedule_df)
+        schedule_df, change_summaries = generate_full_schedule(principal, emi, annual_rate, tenure_months, rate_changes)
+
+        # Show summaries
+        if change_summaries:
+            st.subheader(" Interest Rate Change Summary")
+            for change in change_summaries:
+                with st.container():
+                    st.markdown(f"""
+                    🔄 **Interest rate changed at Month {change['change_month']}**  
+                    - New Interest Rate: **{change['new_rate']}%**  
+                    - Previous Remaining Tenure: **{change['previous_remaining']} months**  
+                    - New Remaining Tenure: **{change['new_remaining']} months**  
+                    {"→ Tenure increased by" if change['tenure_diff'] > 0 else "→ Tenure reduced by"} **{abs(change['tenure_diff'])} months**
+                    """.strip())
+
+        st.subheader("📅 EMI Repayment Schedule")
+        st.dataframe(schedule_df, use_container_width=True)
 
         # Download CSV
         csv = schedule_df.to_csv(index=False).encode('utf-8')
