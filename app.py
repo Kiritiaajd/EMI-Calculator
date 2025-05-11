@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from backend.scenarios_01 import calculate_emi as calculate_emi_s1, generate_full_schedule
 from backend.scenarios_02 import calculate_emi as calculate_emi_s2, generate_schedule_fixed_tenure
+from backend.scenarios_03 import calculate_adjusted_emi_and_tenure  # Import the new function
 
 def main():
     st.title("EMI Calculator & Dynamic Schedule Generator")
@@ -9,7 +10,11 @@ def main():
     # Choose Scenario
     scenario = st.radio(
         "Select EMI Scenario",
-        ("Scenario 1: Constant EMI, Changing Tenure", "Scenario 2: Changing EMI, Constant Tenure")
+        (
+            "Scenario 1: Constant EMI, Changing Tenure",
+            "Scenario 2: Changing EMI, Constant Tenure",
+            "Scenario 3: Adjust Both EMI & Tenure"  # Added Scenario 3 option
+        )
     )
 
     # Loan Details Input
@@ -22,12 +27,29 @@ def main():
 
     tenure_years = st.number_input("Loan Tenure (Years)", min_value=1, value=5)
 
+    # Scenario 1: Constant EMI, Changing Tenure
     if scenario == "Scenario 1: Constant EMI, Changing Tenure":
         emi = calculate_emi_s1(principal, annual_rate, tenure_years)
         st.write(f"Calculated EMI (Fixed): ₹{emi}")
-    else:
+
+    # Scenario 2: Changing EMI, Constant Tenure
+    elif scenario == "Scenario 2: Changing EMI, Constant Tenure":
         emi = calculate_emi_s2(principal, annual_rate, tenure_years)
         st.write(f"Initial EMI (Variable): ₹{emi}")
+
+    # Scenario 3: Adjust Both EMI & Tenure (New Scenario)
+    elif scenario == "Scenario 3: Adjust Both EMI & Tenure":
+        max_emi_increase_per_percent = 1000  # Policy-defined maximum increase per 1% rate change
+        result = calculate_adjusted_emi_and_tenure(principal, annual_rate, annual_rate, tenure_years, max_emi_increase_per_percent)
+
+        # Ensure the result has the correct keys
+        if 'emi_old' in result and 'final_emi' in result and 'final_tenure' in result:
+            st.write(f"Initial EMI: ₹{result['emi_old']}")
+            st.write(f"Adjusted EMI: ₹{result['final_emi']}")
+            st.write(f"Adjusted Tenure: {result['final_tenure']} months")
+        else:
+            st.error("Error: Missing key values in the result.")
+            st.write(result)  # Optionally display the result dictionary to debug
 
     # Rate Changes
     st.header("Interest Rate Changes")
